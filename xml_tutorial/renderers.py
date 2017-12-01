@@ -1,13 +1,9 @@
 """
 Provides XML rendering support.
 """
-from __future__ import unicode_literals
 
-from django.utils import six
-from django.utils.xmlutils import SimplerXMLGenerator
-from django.utils.six.moves import StringIO
-from django.utils.encoding import force_text
 from rest_framework.renderers import BaseRenderer
+import lxml.etree as E
 
 
 class XMLRenderer(BaseRenderer):
@@ -18,44 +14,27 @@ class XMLRenderer(BaseRenderer):
     media_type = 'application/xml'
     format = 'xml'
     charset = 'utf-8'
-    item_tag_name = 'job'
-    root_tag_name = 'source'
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
         """
         Renders `data` into serialized XML.
         """
-        if data is None:
-            return ''
+        # Helper variables
+        root_tag_name = 'source'
+        item_tag_name = 'job'
+        utf8_parser = E.XMLParser(encoding='utf-8')
+        # Start building xml:
+        root = E.Element(root_tag_name)
+        # Unpack each dictionary from the data list:
+        for d in data:
+            # Create a job tag:
+            job = E.SubElement(root, item_tag_name)
+            # Loop through each ordered dictionary:
+            for key, value in d.items():
+                # Add each key, value pair to an element and assign to job tag:
+                E.SubElement(job, key).text = value
 
-        stream = StringIO()
-
-        xml = SimplerXMLGenerator(stream, self.charset)
-        print('xml: ', dir(xml))
-        xml.startDocument()
-        xml.addQuickElement("title")
-        xml.startElement(self.root_tag_name, {})
-        self._to_xml(xml, data)
-        xml.endElement(self.root_tag_name)
-
-        xml.endDocument()
-        return stream.getvalue()
-
-    def _to_xml(self, xml, data):
-        if isinstance(data, (list, tuple)):
-            for item in data:
-                xml.startElement(self.item_tag_name, {})
-                self._to_xml(xml, item)
-                xml.endElement(self.item_tag_name)
-
-        elif isinstance(data, dict):
-            for key, value in six.iteritems(data):
-                xml.startElement(key, {})
-                self._to_xml(xml, '<![CDATA[' + value + ']]>')
-                xml.endElement(key)
-        elif data is None:
-            # Don't output any value
-            pass
-
-        else:
-            xml.characters(force_text(data))
+                
+        print(E.tostring(root, pretty_print=True, xml_declaration=True, encoding='UTF-8'))
+        # Pass the completed XML document to the view:
+        return E.tostring(root, pretty_print=True, xml_declaration=True, encoding='UTF-8')
